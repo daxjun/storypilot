@@ -10,8 +10,13 @@ export type DataMode = "mock" | "api";
 export const DATA_MODE: DataMode =
   process.env.NEXT_PUBLIC_DATA_MODE === "api" ? "api" : "mock";
 
+/**
+ * Empty by default so production browser requests use same-origin Vercel
+ * rewrites (/api/*). Set NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+ * in frontend/.env.local for local development outside the Vercel CLI.
+ */
 export const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? ""
 ).replace(/\/$/, "");
 
 export const isMockMode = DATA_MODE === "mock";
