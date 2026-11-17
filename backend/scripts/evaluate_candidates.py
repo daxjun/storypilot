@@ -3,6 +3,7 @@ import argparse
 import json
 import re
 import sys
+import time
 from pathlib import Path
 
 # ---------------------------------------------------------
@@ -203,6 +204,33 @@ def save_results(results):
 # EVALUATION
 # ---------------------------------------------------------
 
+def is_retryable_gemini_error(error):
+    """Retry only transient Gemini/API availability and rate-limit errors."""
+    message = str(error).lower()
+    retryable_markers = (
+        "503", "unavailable", "429", "resource_exhausted",
+        "500", "internal", "timeout", "timed out",
+        "temporarily unavailable",
+    )
+    return any(marker in message for marker in retryable_markers)
+
+
+def evaluate_with_retries(evaluator, candidate, episode, max_attempts=3):
+    """Retry transient API errors with exponential backoff; never retry validation errors."""
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return evaluator.evaluate_with_score(candidate=candidate, episode=episode)
+        except Exception as error:
+            if attempt >= max_attempts or not is_retryable_gemini_error(error):
+                raise
+            delay = 2 ** attempt
+            print(
+                f"Transient Gemini error (attempt {attempt}/{max_attempts}): "
+                f"{error}. Retrying in {delay}s..."
+            )
+            time.sleep(delay)
+
+
 def run_evaluations(limit, retry_failed=False):
     candidates = load_candidates()
     episode_files = discover_episode_files()
@@ -273,9 +301,11 @@ def run_evaluations(limit, retry_failed=False):
                 episode_cache,
             )
 
-            evaluation, final_score = evaluator.evaluate_with_score(
+            evaluation, final_score = evaluate_with_retries(
+                evaluator=evaluator,
                 candidate=candidate,
                 episode=episode,
+                max_attempts=3,
             )
 
             result = {
