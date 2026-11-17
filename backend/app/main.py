@@ -1,7 +1,9 @@
 """StoryPilot read-only API. Loads the already processed local dataset; never calls Gemini."""
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 import re
 from pathlib import Path
 from functools import lru_cache
@@ -11,7 +13,8 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA = ROOT / "data"
+USING_VERCEL_BLOB = os.getenv("VERCEL") == "1"
+DATA = Path("/tmp/storypilot-data") if USING_VERCEL_BLOB else ROOT / "data"
 BATCH = DATA / "evaluation" / "batch"
 REAL = DATA / "real"
 
@@ -28,6 +31,31 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def load_private_blob_metadata():
+    """Load processed JSON metadata from private Blob into the writable /tmp directory."""
+    if not USING_VERCEL_BLOB:
+        return
+    if not os.getenv("BLOB_READ_WRITE_TOKEN"):
+        raise RuntimeError("BLOB_READ_WRITE_TOKEN is missing in the Vercel environment")
+
+    from vercel.blob import get_blob
+
+    BATCH.mkdir(parents=True, exist_ok=True)
+    filenames = [
+        "dataset-summary.json",
+        "all-shortlisted-candidates.json",
+        "top-50-candidates.json",
+        "editorial-evaluations.json",
+    ]
+    results = await asyncio.gather(*[
+        get_blob(f"storypilot/evaluation/batch/{name}", access="private")
+        for name in filenames
+    ])
+    for name, result in zip(filenames, results):
+        (BATCH / name).write_bytes(result.body)
 
 
 def read_json(name: str, default: Any):
@@ -147,19 +175,29 @@ def candidate_state():
     return rows, done, failed
 
 
-def parse_episode_file(episode_id: str):
+async def parse_episode_file(episode_id: str):
     meta = ep_metadata().get(episode_id)
     if not meta:
         raise HTTPException(404, "Episode not found")
-    path = REAL / str(meta.get("filename", ""))
-    if not path.exists():
-        raise HTTPException(404, f"Screenplay file is missing: {path.name}")
+    filename = str(meta.get("filename", ""))
     try:
+        if USING_VERCEL_BLOB:
+            from vercel.blob import get_blob
+            result = await get_blob(f"storypilot/real/{filename}", access="private")
+            screenplay_text = result.body.decode("utf-8-sig")
+        else:
+            path = REAL / filename
+            if not path.exists():
+                raise HTTPException(404, f"Screenplay file is missing: {filename}")
+            screenplay_text = path.read_text(encoding="utf-8-sig")
+
         from app.services.structured_parser import parse_structured_episode_text
-        parsed = parse_structured_episode_text(path.read_text(encoding="utf-8-sig"), episode_id, "storypilot", path.name)
+        parsed = parse_structured_episode_text(screenplay_text, episode_id, "storypilot", filename)
         return parsed.model_dump(mode="json")
+    except HTTPException:
+        raise
     except Exception as exc:
-        raise HTTPException(500, f"Could not parse screenplay {path.name}: {exc}")
+        raise HTTPException(500, f"Could not parse screenplay {filename}: {exc}")
 
 
 def frontend_segment(seg: dict):
@@ -225,8 +263,8 @@ def get_episodes():
 
 
 @app.get("/api/episodes/{episode_id}")
-def get_episode(episode_id: str):
-    raw = frontend_episode(parse_episode_file(episode_id))
+async def get_episode(episode_id: str):
+    raw = frontend_episode(await parse_episode_file(episode_id))
     rows, done, failed = candidate_state()
     meta = ep_metadata().get(episode_id, {})
     raw["stats"] = stats_for_episode(episode_id, rows, meta, done, failed)
@@ -245,12 +283,12 @@ def get_candidates(episode_id: str | None = Query(default=None), status: str | N
 
 
 @app.get("/api/candidates/{candidate_id}")
-def get_candidate(candidate_id: str):
+async def get_candidate(candidate_id: str):
     rows, done, failed = candidate_state()
     candidate = next((r for r in rows if r.get("candidate_id") == candidate_id), None)
     if not candidate:
         raise HTTPException(404, "Candidate not found")
-    episode = frontend_episode(parse_episode_file(candidate["episode_id"]))
+    episode = frontend_episode(await parse_episode_file(candidate["episode_id"]))
     wanted = set(candidate.get("segment_ids", []))
     segments = [s for s in episode.get("segments", []) if s.get("segment_id") in wanted]
     rec = done.get(candidate_id)
