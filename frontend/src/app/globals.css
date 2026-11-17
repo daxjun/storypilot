@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+/*
+ * StoryPilot design tokens (shadcn/ui-compatible naming).
+ * Light, neutral surfaces; charcoal ink; one indigo accent.
+ */
+:root {
+  --radius: 0.5rem;
+
+  --background: #f8f9fb;
+  --foreground: #1c1f26;
+
+  --card: #ffffff;
+  --card-foreground: #1c1f26;
+
+  --muted: #f1f3f6;
+  --muted-foreground: #5f6673;
+
+  --border: #e3e6eb;
+  --input: #d9dde3;
+  --ring: #6366f1;
+
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --accent: #eef0ff;
+  --accent-foreground: #3730a3;
+
+  --secondary: #f1f3f6;
+  --secondary-foreground: #1c1f26;
+
+  --destructive: #c2410c;
+
+  /* Status (reserved; always shown with an icon or label) */
+  --success: #15803d;
+  --success-soft: #ecfdf3;
+  --warning: #b45309;
+  --warning-soft: #fffbeb;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --info: #4338ca;
+  --info-soft: #eef0ff;
+
+  /* Evidence roles (validated pair; always shown with text labels) */
+  --role-hook: #4f46e5;
+  --role-cliff: #0d9488;
+  --role-cited: #94a3b8;
+  --role-context: #e5e7eb;
+
+  /* Charts */
+  --chart-1: #4f46e5;
+  --chart-grid: #e8ebf0;
+  --chart-axis: #6b7280;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "cv11", "ss01";
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
