@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 ROOT = Path(__file__).resolve().parents[1]
-USING_VERCEL_BLOB = os.getenv("VERCEL") == "1"
+USING_VERCEL_BLOB = bool(os.getenv("BLOB_READ_WRITE_TOKEN"))
 DATA = Path("/tmp/storypilot-data") if USING_VERCEL_BLOB else ROOT / "data"
 BATCH = DATA / "evaluation" / "batch"
 REAL = DATA / "real"
@@ -250,7 +250,7 @@ def stats_for_episode(epid: str, rows: list, meta: dict, done: dict, failed: dic
 
 @app.get("/health")
 def health():
-    return {"ok": True, "service": "storypilot-api", "data_available": (BATCH / "dataset-summary.json").exists(), "data_directory": str(DATA)}
+    return {"ok": True, "service": "storypilot-api", "data_available": (BATCH / "dataset-summary.json").exists(), "blob_mode": USING_VERCEL_BLOB, "data_directory": str(DATA)}
 
 
 @app.get("/api/episodes")
